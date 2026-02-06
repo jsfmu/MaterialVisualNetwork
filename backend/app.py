@@ -1,10 +1,11 @@
 # backend/app.py
+from pathlib import Path
 from typing import Any, Dict, List
 
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 from .model import get_remote_image_url, init_model, similar_by_sku
@@ -105,3 +106,21 @@ async def image_proxy(image_id: str):
         headers["content-type"] = content_type
 
     return Response(content=resp.content, headers=headers)
+
+
+# Serve frontend (matvis-web/dist) for Vercel deployment
+_DIST = Path(__file__).resolve().parents[1] / "matvis-web" / "dist"
+
+
+@app.get("/{full_path:path}")
+def serve_frontend(full_path: str):
+    """Serve static files or index.html for SPA routing."""
+    if not _DIST.exists():
+        return {"error": "Frontend not built", "path": str(_DIST)}
+    file_path = _DIST / full_path
+    if file_path.is_file():
+        return FileResponse(file_path)
+    index_path = _DIST / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    return {"error": "Not found", "path": full_path}
